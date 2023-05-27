@@ -1,0 +1,211 @@
+from cmath import sqrt
+import math
+import numpy as np
+import matplotlib.pyplot as plt
+
+def  Calculation_a(MOLE_FRAC,length,a ,ai,K):
+    for i in range(0,length):
+        for j in range(0,length):
+            a += MOLE_FRAC[i] * MOLE_FRAC[j] * math.sqrt(ai[i]*ai[j])  * (1 - K)
+
+    return a
+#****************************************************************************************************
+def  Calculation_b(MOLE_FRAC,length,b ,bi):
+    for i in range(0,length):
+        b += MOLE_FRAC[i]*bi[i]
+
+    return b
+#****************************************************************************************************
+def  Calculation_aprime(MOLE_FRAC,length,aprime,aprimei ,ai,K):
+    for i in range(0,length):
+        for j in range(0,length):
+            aprime += MOLE_FRAC[i] * MOLE_FRAC[j] * (1 - K) * (math.sqrt(ai[j]/ai[i])*aprimei[i] + math.sqrt(ai[i]/ai[j])*aprimei[j])      
+
+    return aprime
+#****************************************************************************************************
+def  Calculation_adoubleprime(MOLE_FRAC,length,adoubleprime,aprimei,ai,adoubleprimei,K):
+    for i in range(0,length):
+        for j in range(0,length):
+            adoubleprime += MOLE_FRAC[i] * MOLE_FRAC[j] * (1 - K) * ((aprimei[i]*aprimei[j]/math.sqrt(ai[i]*ai[j]))+(adoubleprimei[i]*math.sqrt(ai[i])/math.sqrt(ai[j]))+(adoubleprimei[j]*math.sqrt(ai[i])/math.sqrt(ai[j])) - 0.5*((aprimei[i]**2*math.sqrt(ai[j])/math.sqrt(ai[i]**3))+(aprimei[j]**2*math.sqrt(ai[i])/math.sqrt(ai[j]**3))))      
+
+    return adoubleprime
+#****************************************************************************************************
+def  Calculation_CVID(MOLE_FRAC,CON_VOL_SPE_HEA,length,CVID ):
+    for i in range(0,length):
+        CVID += MOLE_FRAC[i]*CON_VOL_SPE_HEA[i]
+
+    return CVID   
+#****************************************************************************************************
+def  Calculation_CPID(MOLE_FRAC,CON_PRE_SPE_HEA,length,CPID ):
+    for i in range(0,length):
+        CPID += MOLE_FRAC[i]*CON_PRE_SPE_HEA[i]
+
+    return CPID   
+#****************************************************************************************************  
+#inter  data
+P0 = 30000
+T0 = 286
+R = 8.31446261815324
+K = 0
+CRI_PRES = [4604.0,4880.0]                                              #CRITICAL_PRESSURE
+CRI_TEMP = [190.6,305.4]                                                 #CRITICAL_TEMPERATURE
+PIT_ACE_FAC = [0.011,0.099]                                          #PITZER_ACENTRIC_FACTOR
+MOLE_FRAC = [0.8,0.2]                                                     #MOLE_FRACTION
+CON_VOL_SPE_HEA = [27.4,44.8]                                  #CONSTANT_VOLUME_SPECIFIC_HEAT
+CON_PRE_SPE_HEA = [35.8,53.1  ]                                #CONSTANT_PRESSURE_SPECIFIC_HEAT
+TEMPERATURE=[]
+TEMPERATURE=[200,210,240,280,310,320,360,400,440]
+COLORDATA =    ['c',   'g',   'y',   'b',   'r',   'o',  'm',   'p',  't']
+#define Arra List
+length = len(CRI_PRES )
+a = 0
+b = 0
+aprime = 0
+adoubleprime = 0
+CVID = 0
+CPID = 0
+ai = []
+bi = []
+aprimei = []
+adoubleprimei = []
+
+## first for-----------------------------------------------------------
+dataTotal = []
+for T in TEMPERATURE :
+    for P in range(100,70060,50):
+        if T == 440 : 
+            T = T0 
+            P = P0
+        for i in range(0,length):
+            m = 0.37464 + 1.54226 * PIT_ACE_FAC[i] - 0.26992 * PIT_ACE_FAC[i]**2
+            ac = 0.45723553 * ((R**2)*(CRI_TEMP[i]**2)/CRI_PRES [i])
+            Bi = 0.077796074*R*CRI_TEMP[i]/CRI_PRES [i]
+            Ai = ac*(1+m*(1-math.sqrt(T/CRI_TEMP[i])))**2
+            APRIMEi = (-m*Ai)/((1+m*(1-math.sqrt(T/CRI_TEMP[i])))*math.sqrt(T*CRI_TEMP[i]))
+            ADOUBLEPRIMEi = (ac*m*math.sqrt(CRI_TEMP[i]/T)*(1 + m))/(2*T*CRI_TEMP[i])
+            ai.append(Ai)
+            bi.append(Bi)
+            aprimei.append(APRIMEi)
+            adoubleprimei.append(ADOUBLEPRIMEi)
+            
+        a=Calculation_a(MOLE_FRAC,length,a ,ai,K)      
+        b=Calculation_b(MOLE_FRAC,length,b ,bi)
+        
+        aprime=Calculation_aprime(MOLE_FRAC,length,aprime,aprimei ,ai,K)
+        aprime = aprime/2
+
+        adoubleprime=Calculation_adoubleprime(MOLE_FRAC,length,adoubleprime,aprimei,ai,adoubleprimei,K)
+        adoubleprime = adoubleprime/2
+
+        A = a*P/(R*T)**2
+        B = b*P/(R*T)
+
+        ALPHA = B - 1
+        BETA = A - 2*B - 3*B**2
+        GAMMA = B**3 + B**2 - A*B
+
+        coeff = [1, ALPHA, BETA, GAMMA] 
+        for i in range(0,3):
+            z = np.roots(coeff)[i]
+            if np.imag(z) == 0:
+                Z = np.real(z)
+                break
+
+        v = Z*R*T/P
+
+        ATP = (P/(R*T)**2)*(aprime - 2*a/T)
+        BTP = (-b*P)/(R*T**2) 
+
+        ZTP = (ATP*(B - Z) + BTP*(6*B*Z + 2*Z - 3*B**2 - 2*B + A - Z**2))/(3*Z**2 + 2*(B - 1)*Z + (A - 2*B - 3*B**2))
+
+        PTV = (R/(v - b))-(aprime/(v*(v + b) + b*(v - b)))
+        VTP = (R/P)*(T*ZTP + Z)
+        
+        CVR = (T*adoubleprime/(b*math.sqrt(8)))*(math.log((Z + B*(1 + math.sqrt(2)))/(Z + B*(1 - math.sqrt(2)))))
+        CVID=Calculation_CVID(MOLE_FRAC,CON_VOL_SPE_HEA,length,CVID )
+        CV = CVID + CVR
+
+        CPR = CVR + T*PTV*VTP - R
+        
+        CPID=Calculation_CPID(MOLE_FRAC,CON_PRE_SPE_HEA,length,CPID )
+        CP = CPID + CPR
+
+        J = (1/CP)*(T*VTP - v)
+        
+        if T == T0 and P == P0 :
+            print(f'Result is:\n Joule Thompson:{J}\n Compressibility Factor:{Z}')
+            print(f'Result is:\n Joule Thompson:{round(J,5)}\n Compressibility Factor:{round(Z,3)}')
+            break
+        else :
+            dataTotal.append([T,P,Z,J])
+
+        a = 0
+        b = 0
+        aprime =0
+        adoubleprime = 0
+        CVID = 0
+        CPID = 0
+
+        ai.clear()
+        bi.clear()
+        aprimei.clear()
+        adoubleprimei.clear()
+
+dataJ = []
+dataP = []
+j = 0
+
+T = dataTotal[0][0]
+# plot
+
+
+for  i in range(0,len(dataTotal)-1):
+    
+    if T == dataTotal[i+1][0]:
+        f = open(f"Result_{T}.txt",'a')
+        f.write(f"{dataTotal[i][3]*1000} /")
+        f.write(f"{dataTotal[i][1]*1000} \n")
+        f.close()
+        dataJ.append(dataTotal[i][3]*1000)
+        dataP.append(dataTotal[i][1]/1000)
+    else:
+        plt.plot(dataP,dataJ,COLORDATA[j],label = f'T = {T}K')
+        plt.legend()
+        dataP.clear()
+        dataJ.clear()
+        j+=1
+        T = dataTotal[i+1][0]
+plt.xlabel('Pressure [Mpa]')
+plt.ylabel('Joule Thompson Coefficient [K/MPa] * 1000')
+plt.title('Joule Thompson Coe for...')        
+plt.grid(color = 'red', linestyle = '--', linewidth = 0.5)
+plt.show()
+
+
+if len(CRI_PRES ) == 1 : 
+
+    dataZ = []
+    dataP.clear()
+    j = 0
+
+    T = dataTotal[0][0]
+
+    for  i in range(0,len(dataTotal)-1):
+        
+        if T == dataTotal[i+1][0]:
+            dataZ.append(dataTotal[i][2])
+            dataP.append(dataTotal[i][1]/CRI_PRES [0])
+        else:
+            T = T/CRI_TEMP[0]
+            plt.plot(dataP,dataZ,COLORDATA[j],label = f'Tr = {round(T,2)}K')
+            plt.legend()
+            dataP.clear()
+            dataZ.clear()
+            j+=1
+            T = dataTotal[i+1][0]
+
+    plt.xlabel('Reduce Pressure')
+    plt.ylabel('Compressibility Factor')
+    plt.title('Compressibility Factor')        
+    plt.grid(color = 'orange', linestyle = '--', linewidth = 0.5)
+    plt.show()
